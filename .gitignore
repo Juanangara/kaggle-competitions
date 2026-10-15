@@ -1,0 +1,15 @@
+# Kaggle data (competition rules forbid redistribution)
+**/data/
+submission*.csv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
