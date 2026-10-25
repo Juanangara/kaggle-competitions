@@ -85,6 +85,32 @@ con todo el train y la cantidad de árboles promedio de la CV.
 Las features con más peso (ganancia) son la diferencia de longitud, el solapamiento de
 vocabulario entre A y B (señal de empate) y la diferencia de saltos de línea.
 
+## Embeddings (Fase 3)
+
+Los embeddings se calculan en Colab con GPU, porque en CPU tardarían horas:
+[`notebooks/embeddings_colab.ipynb`](notebooks/embeddings_colab.ipynb) codifica `prompt`,
+`response_a` y `response_b` con `BAAI/bge-small-en-v1.5` (384 dimensiones, fp16, texto truncado
+a 512 tokens) y guarda `emb_train.npz` en Drive (117 MB). Se descarga a `data/`, que git ignora.
+
+```bash
+python src/train.py --embeddings
+```
+
+**Features nuevas** (`embedding_features` en `src/features.py`): coseno entre cada respuesta y el
+prompt, coseno entre A y B, 32 componentes PCA por respuesta (con su diferencia A − B) y 16
+componentes PCA del prompt. Todo se suma a las features de la Fase 2, con el mismo `GroupKFold`.
+
+| Modelo | Log loss (CV) |
+|---|---|
+| Baseline (Fase 2) | 1.0190 |
+| Baseline + embeddings | **1.0083** |
+
+Los folds van de 1.0065 a 1.0121. La mejora es de ~0.011: unos embeddings congelados con un
+modelo pequeño y un GBM aportan poco frente a las features de longitud, que siguen siendo las de
+más peso. Las PCA se ajustan con todo train (sin usar etiquetas), así que la cifra es ligeramente
+optimista. El test no se codifica en local: el test real (~25,000 filas) se codifica en el notebook
+de Kaggle de la Fase 4.
+
 ## Fases
 
 | Fase | Contenido | Estado |
@@ -92,7 +118,7 @@ vocabulario entre A y B (señal de empate) y la diferencia de saltos de línea.
 | 0 | Estructura, datos y loader | hecha |
 | 1 | EDA | hecha |
 | 2 | Baseline: features manuales + LightGBM, validación agrupada por `prompt` | hecha |
-| 3 | Embeddings de un modelo pequeño (`bge-small` o `all-MiniLM`) | pendiente |
+| 3 | Embeddings de un modelo pequeño (`bge-small`), calculados en Colab | hecha |
 | 4 | Notebook de submission en Kaggle (sin internet) | pendiente |
 | 5 | Fine-tuning de un LLM con LoRA en GPU (opcional) | pendiente |
 | 6 | Cierre: calibración y tabla de resultados | pendiente |

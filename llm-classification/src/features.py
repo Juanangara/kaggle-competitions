@@ -7,6 +7,7 @@ test-time averaging.
 """
 import numpy as np
 import pandas as pd
+from sklearn.decomposition import PCA
 
 REFUSAL = r"(?i)as an ai|i cannot|i can't|i'm sorry|i am sorry|i apologize"
 
@@ -66,3 +67,25 @@ def make_X(fa, fb, shared):
         (fa - fb).add_prefix("d_"),
         shared,
     ], axis=1)
+
+
+def embedding_features(emb, n_response=32, n_prompt=16, pcas=None):
+    """Features from unit-norm sentence embeddings (dot product = cosine).
+
+    Returns frames shaped like `build_features` (per-response A and B, shared) so
+    they can be concatenated, plus the fitted PCAs to reuse on another split.
+    """
+    p, a, b = (emb[k].astype(np.float32) for k in ("prompt", "response_a", "response_b"))
+    if pcas is None:
+        pcas = (PCA(n_response, random_state=0).fit(np.vstack([a, b])),
+                PCA(n_prompt, random_state=0).fit(p))
+    response_pca, prompt_pca = pcas
+
+    def per_response(r):
+        f = pd.DataFrame(response_pca.transform(r), columns=[f"emb{i}" for i in range(n_response)])
+        f["prompt_cos"] = (r * p).sum(axis=1)
+        return f
+
+    shared = pd.DataFrame(prompt_pca.transform(p), columns=[f"pemb{i}" for i in range(n_prompt)])
+    shared["ab_cos"] = (a * b).sum(axis=1)
+    return per_response(a), per_response(b), shared, pcas

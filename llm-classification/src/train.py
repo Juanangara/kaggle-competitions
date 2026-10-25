@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 
 import lightgbm as lgb
@@ -10,7 +11,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from data import load_test, load_train
-from features import build_features, make_X
+from features import build_features, embedding_features, make_X
 
 ROOT = Path(__file__).resolve().parent.parent
 SEED = 42
@@ -36,13 +37,19 @@ def predict_tta(model, fa, fb, shared):
     return p, (p + p_swapped) / 2
 
 
-def main():
+def main(use_embeddings=False):
     train, test = load_train(), load_test()
     y = train["label"].to_numpy()
     groups = pd.factorize(train["prompt"])[0]
 
     print("Building features...")
     fa, fb, shared = build_features(train)
+    if use_embeddings:
+        emb = np.load(ROOT / "data" / "emb_train.npz")
+        assert (emb["id"] == train["id"].to_numpy()).all(), "embeddings are not aligned with train"
+        ea, eb, es, _ = embedding_features(emb)
+        fa, fb, shared = (pd.concat([x, y_], axis=1) for x, y_ in ((fa, ea), (fb, eb), (shared, es)))
+    tag = "embeddings" if use_embeddings else "baseline"
 
     cv = GroupKFold(n_splits=5)
     oof = {name: np.zeros((len(train), 3)) for name in ("prior", "logreg", "lgbm", "lgbm_tta")}
@@ -74,7 +81,7 @@ def main():
               "lgbm": "LightGBM", "lgbm_tta": "LightGBM + A/B averaging"}
     for name, p in oof.items():
         print(f"{labels[name]:28s} log loss = {log_loss(y, p):.4f}")
-    np.save(ROOT / "data" / "oof_baseline.npy", oof["lgbm_tta"])
+    np.save(ROOT / "data" / f"oof_{tag}.npy", oof["lgbm_tta"])
 
     # Final model on all of train, with the number of trees found in CV.
     X_all, y_all = augment(fa, fb, shared, y)
@@ -84,6 +91,9 @@ def main():
     importance = pd.Series(final.booster_.feature_importance("gain"), index=X_all.columns)
     print("\nTop features by gain:")
     print((importance / importance.sum()).nlargest(10).round(3).to_string())
+
+    if use_embeddings:
+        return  # test embeddings are computed in the Kaggle notebook, not locally
 
     ta, tb, ts = build_features(test)
     _, p_test = predict_tta(final, ta, tb, ts)
@@ -95,4 +105,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--embeddings", action="store_true", help="add sentence-embedding features")
+    main(parser.parse_args().embeddings)
