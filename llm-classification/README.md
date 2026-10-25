@@ -24,20 +24,36 @@ las parsea y agrega `label` (0 = a, 1 = b, 2 = empate).
 python src/data.py
 ```
 
+## Notebook
+
+[`notebooks/eda.ipynb`](notebooks/eda.ipynb) contiene el análisis exploratorio con las gráficas
+ya ejecutadas. Reutiliza el loader de `src/data.py`.
+
 ## Lo que se sabe de los datos
 
-- Clases casi balanceadas: A 34.9 %, B 34.2 %, empate 30.9 %. Un modelo uniforme da
-  log loss ≈ 1.0986, que es la referencia mínima.
-- Sin vacíos en `prompt` ni en las respuestas. 275 filas tienen la misma respuesta en A y B.
-- 5,743 filas repiten un `prompt` ya visto, así que la validación debe agrupar por `prompt`.
-- El texto total (prompt + 2 respuestas) tiene mediana de ~2.4K caracteres y p99 de ~16K.
+- Clases casi balanceadas: A 34.9 %, B 34.2 %, empate 30.9 %. Predecir 1/3 para todo da
+  log loss 1.0986 y predecir las proporciones de clase da 1.0972: es la referencia a batir.
+- Casi no hay sesgo de posición: entre las decisiones sin empate, A gana el 50.5 %.
+- **Sesgo de verbosidad:** la respuesta más larga gana el 61.6 % de las veces (sin empates y con
+  longitudes distintas). Es la señal más fuerte (correlación +0.22), seguida de saltos de línea
+  (+0.19) y viñetas (+0.12). Las frases de rechazo ("I cannot", "as an AI") penalizan (−0.15).
+- **Empates:** casi 40 % cuando las respuestas miden lo mismo y ~26 % cuando difieren mucho.
+  Si A y B son idénticas (275 filas), el 90 % empata.
+- **Longitud:** el texto (prompt + A + B) tiene mediana ~590 tokens estimados, p90 ~1.5K y
+  p99 ~3.8K. El 13 % de las conversaciones tiene más de un turno.
+- **Prompts repetidos:** 51,734 prompts distintos en 57,477 filas. Las 8,861 filas con prompt
+  repetido tienen 40.5 % de empates (29.2 % en el resto), así que la validación debe agrupar
+  por `prompt`.
+- Sin vacíos en `prompt` ni en las respuestas, salvo 44 filas con una respuesta vacía.
+- `model_a` y `model_b` solo existen en train: sirven para describir (GPT-4 gana más, los
+  modelos de 3B a 12B menos), no como features.
 
 ## Fases
 
 | Fase | Contenido | Estado |
 |---|---|---|
 | 0 | Estructura, datos y loader | hecha |
-| 1 | EDA | pendiente |
+| 1 | EDA | hecha |
 | 2 | Baseline: features manuales + LightGBM, validación agrupada por `prompt` | pendiente |
 | 3 | Embeddings de un modelo pequeño (`bge-small` o `all-MiniLM`) | pendiente |
 | 4 | Notebook de submission en Kaggle (sin internet) | pendiente |
