@@ -103,13 +103,40 @@ componentes PCA del prompt. Todo se suma a las features de la Fase 2, con el mis
 | Modelo | Log loss (CV) |
 |---|---|
 | Baseline (Fase 2) | 1.0190 |
-| Baseline + embeddings | **1.0083** |
+| Baseline + embeddings | **1.0086** |
 
-Los folds van de 1.0065 a 1.0121. La mejora es de ~0.011: unos embeddings congelados con un
+Los folds van de 1.0071 a 1.0112. La mejora es de ~0.010: unos embeddings congelados con un
 modelo pequeño y un GBM aportan poco frente a las features de longitud, que siguen siendo las de
 más peso. Las PCA se ajustan con todo train (sin usar etiquetas), así que la cifra es ligeramente
 optimista. El test no se codifica en local: el test real (~25,000 filas) se codifica en el notebook
 de Kaggle de la Fase 4.
+
+## Submission en Kaggle (Fase 4)
+
+Es una *code competition*: el notebook corre en Kaggle sin internet. Los artefactos se generan
+en local y se suben como dataset.
+
+```bash
+python src/train.py --embeddings   # entrena y guarda artifacts/lgbm.txt y projections.npz
+python src/bundle.py               # copia el código de inferencia junto a los artefactos
+```
+
+La carpeta `artifacts/` (4 MB, no va a git) se sube como dataset privado. El modelo y las
+proyecciones se guardan en formatos independientes de la versión (texto de LightGBM y arrays de
+NumPy), porque Kaggle usa otras versiones de LightGBM y scikit-learn.
+
+[`notebooks/submission_kaggle.ipynb`](notebooks/submission_kaggle.ipynb) lee el test, codifica
+cada texto único con `bge-small-en-v1.5` (el modelo público de Kaggle `happenmass/bge-small-en-v1.5`,
+añadido como entrada), calcula las features y predice con `src/predict.py`, promediando cada fila
+con su espejo A/B. Busca las entradas con `rglob` en vez de rutas fijas, porque Kaggle organiza
+`/kaggle/input` de forma distinta según el tipo de entrada.
+
+| Envío | Puntaje público (log loss) |
+|---|---|
+| LightGBM + embeddings | **1.00436** |
+
+El puntaje público se calcula sobre una parte del test y es más bajo que la CV local (1.0086), lo
+que indica que el pipeline de inferencia en Kaggle reproduce el entrenamiento.
 
 ## Fases
 
@@ -119,6 +146,6 @@ de Kaggle de la Fase 4.
 | 1 | EDA | hecha |
 | 2 | Baseline: features manuales + LightGBM, validación agrupada por `prompt` | hecha |
 | 3 | Embeddings de un modelo pequeño (`bge-small`), calculados en Colab | hecha |
-| 4 | Notebook de submission en Kaggle (sin internet) | pendiente |
+| 4 | Notebook de submission en Kaggle (sin internet) | hecha |
 | 5 | Fine-tuning de un LLM con LoRA en GPU (opcional) | pendiente |
 | 6 | Cierre: calibración y tabla de resultados | pendiente |

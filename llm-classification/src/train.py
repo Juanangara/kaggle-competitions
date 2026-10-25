@@ -11,11 +11,10 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from data import load_test, load_train
-from features import build_features, embedding_features, make_X
+from features import SWAP, build_features, embedding_features, make_X, save_projections
 
 ROOT = Path(__file__).resolve().parent.parent
 SEED = 42
-SWAP = [1, 0, 2]  # class order after swapping A and B
 
 LGB_PARAMS = dict(
     objective="multiclass", learning_rate=0.05, n_estimators=2000, num_leaves=31,
@@ -47,7 +46,7 @@ def main(use_embeddings=False):
     if use_embeddings:
         emb = np.load(ROOT / "data" / "emb_train.npz")
         assert (emb["id"] == train["id"].to_numpy()).all(), "embeddings are not aligned with train"
-        ea, eb, es, _ = embedding_features(emb)
+        ea, eb, es, projections = embedding_features(emb)
         fa, fb, shared = (pd.concat([x, y_], axis=1) for x, y_ in ((fa, ea), (fb, eb), (shared, es)))
     tag = "embeddings" if use_embeddings else "baseline"
 
@@ -93,7 +92,13 @@ def main(use_embeddings=False):
     print((importance / importance.sum()).nlargest(10).round(3).to_string())
 
     if use_embeddings:
-        return  # test embeddings are computed in the Kaggle notebook, not locally
+        # Portable files for the Kaggle notebook; test embeddings are computed there.
+        out_dir = ROOT / "artifacts"
+        out_dir.mkdir(exist_ok=True)
+        final.booster_.save_model(str(out_dir / "lgbm.txt"))
+        save_projections(projections, out_dir / "projections.npz")
+        print(f"\nSaved model and projections in {out_dir}")
+        return
 
     ta, tb, ts = build_features(test)
     _, p_test = predict_tta(final, ta, tb, ts)

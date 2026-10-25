@@ -10,6 +10,7 @@ import pandas as pd
 from sklearn.decomposition import PCA
 
 REFUSAL = r"(?i)as an ai|i cannot|i can't|i'm sorry|i am sorry|i apologize"
+SWAP = [1, 0, 2]  # class order after swapping A and B
 
 
 def _jaccard(a, b):
@@ -69,23 +70,49 @@ def make_X(fa, fb, shared):
     ], axis=1)
 
 
-def embedding_features(emb, n_response=32, n_prompt=16, pcas=None):
+class Projection:
+    """Linear projection (a fitted PCA) kept as plain arrays, so it can be saved
+    and applied without depending on the scikit-learn version."""
+
+    def __init__(self, mean, components):
+        self.mean, self.components = mean, components
+
+    def transform(self, x):
+        return (x - self.mean) @ self.components.T
+
+
+def _fit_projection(x, n_components):
+    pca = PCA(n_components, random_state=0).fit(x)
+    return Projection(pca.mean_.astype(np.float32), pca.components_.astype(np.float32))
+
+
+def save_projections(projections, path):
+    (rm, rc), (pm, pc) = ((q.mean, q.components) for q in projections)
+    np.savez(path, response_mean=rm, response_components=rc, prompt_mean=pm, prompt_components=pc)
+
+
+def load_projections(path):
+    z = np.load(path)
+    return (Projection(z["response_mean"], z["response_components"]),
+            Projection(z["prompt_mean"], z["prompt_components"]))
+
+
+def embedding_features(emb, n_response=32, n_prompt=16, projections=None):
     """Features from unit-norm sentence embeddings (dot product = cosine).
 
     Returns frames shaped like `build_features` (per-response A and B, shared) so
-    they can be concatenated, plus the fitted PCAs to reuse on another split.
+    they can be concatenated, plus the projections to reuse on another split.
     """
     p, a, b = (emb[k].astype(np.float32) for k in ("prompt", "response_a", "response_b"))
-    if pcas is None:
-        pcas = (PCA(n_response, random_state=0).fit(np.vstack([a, b])),
-                PCA(n_prompt, random_state=0).fit(p))
-    response_pca, prompt_pca = pcas
+    if projections is None:
+        projections = (_fit_projection(np.vstack([a, b]), n_response), _fit_projection(p, n_prompt))
+    response_proj, prompt_proj = projections
 
     def per_response(r):
-        f = pd.DataFrame(response_pca.transform(r), columns=[f"emb{i}" for i in range(n_response)])
+        f = pd.DataFrame(response_proj.transform(r), columns=[f"emb{i}" for i in range(n_response)])
         f["prompt_cos"] = (r * p).sum(axis=1)
         return f
 
-    shared = pd.DataFrame(prompt_pca.transform(p), columns=[f"pemb{i}" for i in range(n_prompt)])
+    shared = pd.DataFrame(prompt_proj.transform(p), columns=[f"pemb{i}" for i in range(n_prompt)])
     shared["ab_cos"] = (a * b).sum(axis=1)
-    return per_response(a), per_response(b), shared, pcas
+    return per_response(a), per_response(b), shared, projections
