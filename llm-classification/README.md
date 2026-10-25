@@ -48,13 +48,50 @@ ya ejecutadas. Reutiliza el loader de `src/data.py`.
 - `model_a` y `model_b` solo existen en train: sirven para describir (GPT-4 gana más, los
   modelos de 3B a 12B menos), no como features.
 
+## Baseline (Fase 2)
+
+```bash
+pip install -r ../requirements.txt
+python src/train.py
+```
+
+Calcula las features, compara cuatro modelos con validación cruzada y escribe `submission.csv`.
+Tarda unos 3 minutos en CPU.
+
+**Features** (`src/features.py`), calculadas por respuesta y como diferencia A − B:
+longitud, palabras, saltos de línea, viñetas, negritas, bloques de código, encabezados, URLs,
+signos de pregunta y exclamación, oraciones, proporción de dígitos y mayúsculas, frases de
+rechazo, riqueza de vocabulario y solapamiento con el prompt. También: si A y B son idénticas,
+el solapamiento de vocabulario entre A y B, y la longitud y número de turnos del prompt.
+
+**Validación:** `GroupKFold` de 5 folds agrupando por `prompt`, para que una misma pregunta no
+caiga en train y en validación.
+
+**A/B intercambiados:** el train se duplica con las respuestas intercambiadas (y las etiquetas
+A y B también), y en la predicción se promedia la fila original con la espejo. Así el modelo
+no puede aprender un sesgo de posición.
+
+| Modelo | Log loss (CV) |
+|---|---|
+| Proporciones de clase | 1.0973 |
+| Regresión logística (solo diferencias) | 1.0522 |
+| LightGBM | 1.0196 |
+| LightGBM + promedio A/B | **1.0190** |
+
+Los 5 folds van de 1.0177 a 1.0215. El número de árboles se elige con early stopping sobre el
+fold de validación, así que la cifra puede ser un poco optimista. El modelo final se entrena
+con todo el train y la cantidad de árboles promedio de la CV.
+
+Las features con más peso (ganancia) son la diferencia de longitud, el solapamiento de
+vocabulario entre A y B (señal de empate) y la diferencia de saltos de línea.
+
 ## Fases
 
 | Fase | Contenido | Estado |
 |---|---|---|
 | 0 | Estructura, datos y loader | hecha |
 | 1 | EDA | hecha |
-| 2 | Baseline: features manuales + LightGBM, validación agrupada por `prompt` | pendiente |
+| 2 | Baseline: features manuales + LightGBM, validación agrupada por `prompt` | hecha |
 | 3 | Embeddings de un modelo pequeño (`bge-small` o `all-MiniLM`) | pendiente |
 | 4 | Notebook de submission en Kaggle (sin internet) | pendiente |
 | 5 | Fine-tuning de un LLM con LoRA en GPU (opcional) | pendiente |
