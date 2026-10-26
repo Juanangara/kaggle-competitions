@@ -5,7 +5,7 @@ Soluciones a competencias de Kaggle, una carpeta por competencia.
 | Competencia | Enfoque | Puntaje (leaderboard) | Carpeta |
 |---|---|---|---|
 | Titanic - Machine Learning from Disaster | Gradient Boosting + feature engineering | 0.77990 (accuracy) | [`titanic/`](titanic/) |
-| LLM Classification Finetuning | Features + embeddings, LoRA opcional | en progreso (log loss) | [`llm-classification/`](llm-classification/) |
+| LLM Classification Finetuning | Features + embeddings `bge-small` + LightGBM (probado también LoRA) | 1.00436 (log loss) | [`llm-classification/`](llm-classification/) |
 
 ## Uso
 
