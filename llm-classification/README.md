@@ -163,6 +163,39 @@ o un modelo más grande, fuera del alcance de la GPU gratuita.
 Los números de la mezcla se reproducen con `python src/calibration.py` (necesita `lora_val_pred.npz`
 en `data/`).
 
+## Calibración (Fase 6)
+
+LightGBM ya sale calibrado: en las 57,477 predicciones fuera de muestra, la confianza media de cada
+tramo coincide con la precisión (por ejemplo 0.800 frente a 0.822 en el tramo más seguro), y la
+proporción media predicha por clase (34.6 / 34.6 / 30.8 %) es casi la real (34.9 / 34.2 / 30.9 %).
+Se probó escalar por temperatura y una regresión logística sobre los logits, ajustadas con 4 folds y
+evaluadas en el quinto:
+
+| Corrección | Log loss (CV) |
+|---|---|
+| Sin corregir | 1.00859 |
+| Temperatura | 1.00859 |
+| Regresión logística sobre logits | 1.00849 |
+
+La mejor gana 0.0001, así que no se aplicó y el envío de la Fase 4 se queda como está.
+
+## Resumen de resultados
+
+| Modelo | Log loss | Dónde |
+|---|---|---|
+| Proporciones de clase | 1.0973 | CV |
+| Regresión logística (diferencias) | 1.0522 | CV |
+| LightGBM + promedio A/B | 1.0190 | CV |
+| LightGBM + embeddings `bge-small` | 1.0086 | CV |
+| Mismo, enviado a Kaggle | **1.00436** | puntaje público |
+| LLM con LoRA (20k filas) | 1.0105 | 3,398 filas (LightGBM: 1.0019) |
+| LLM + LightGBM, no enviado | 0.9973 | las mismas 3,398 filas |
+
+Lo que más aportó fue la longitud y el estilo de las respuestas (Fase 2, de 1.097 a 1.019). Los
+embeddings sumaron 0.010, el puntaje en Kaggle salió algo mejor que la CV, y el LLM entrenado en una
+T4 no mejoró lo que ya había. Los embeddings congelados y el GBM se agotan cerca de 1.00; bajar de ahí
+requiere un LLM entrenado con todos los datos.
+
 ## Fases
 
 | Fase | Contenido | Estado |
@@ -173,4 +206,4 @@ en `data/`).
 | 3 | Embeddings de un modelo pequeño (`bge-small`), calculados en Colab | hecha |
 | 4 | Notebook de submission en Kaggle (sin internet) | hecha |
 | 5 | Fine-tuning de un LLM con LoRA en Colab (T4), mezcla con LightGBM | hecha, sin enviar a Kaggle |
-| 6 | Cierre: calibración y tabla de resultados | pendiente |
+| 6 | Cierre: calibración y tabla de resultados | hecha |
