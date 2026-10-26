@@ -138,6 +138,31 @@ con su espejo A/B. Busca las entradas con `rglob` en vez de rutas fijas, porque 
 El puntaje público se calcula sobre una parte del test y es más bajo que la CV local (1.0086), lo
 que indica que el pipeline de inferencia en Kaggle reproduce el entrenamiento.
 
+## Fine-tuning con LoRA (Fase 5)
+
+[`notebooks/lora_colab.ipynb`](notebooks/lora_colab.ipynb) ajusta `Qwen/Qwen2.5-1.5B-Instruct` como
+clasificador de 3 clases con LoRA (r=16, todas las proyecciones) en una GPU T4 de Colab. La entrada
+es `prompt + respuesta A + respuesta B`, con cada campo truncado por separado (256 y 384 tokens).
+Igual que en la Fase 2, A y B se intercambian al azar al entrenar y la predicción promedia cada fila
+con su espejo. Entrena con 20,000 filas (1,250 pasos, 211 min) y valida en 3,398 filas separadas por
+`prompt`. Los pesos del adaptador y las predicciones de validación quedan en Drive.
+
+| Modelo (mismas 3,398 filas de validación) | Log loss |
+|---|---|
+| LLM con LoRA | 1.0105 |
+| LightGBM + embeddings (predicciones fuera de muestra) | **1.0019** |
+| Mezcla, 35-40 % LLM + LightGBM | **0.9973** |
+
+Con 20k filas y una T4, el LLM no alcanza a LightGBM. Mezclados mejoran ~0.005, porque ven cosas
+distintas (el texto frente a longitud y estilo), pero sus aciertos están muy correlacionados (0.82)
+y la ganancia es pequeña. Subirla a Kaggle exigiría inferir 25,000 filas dos veces con el LLM
+(~1.5 h estimadas en T4) y montar `peft` y el modelo base sin internet. **No se llevó a Kaggle**: el
+envío sigue siendo el de la Fase 4. Un LLM mejor pediría más datos (el train completo son ~10 h de T4)
+o un modelo más grande, fuera del alcance de la GPU gratuita.
+
+Los números de la mezcla se reproducen con `python src/calibration.py` (necesita `lora_val_pred.npz`
+en `data/`).
+
 ## Fases
 
 | Fase | Contenido | Estado |
@@ -147,5 +172,5 @@ que indica que el pipeline de inferencia en Kaggle reproduce el entrenamiento.
 | 2 | Baseline: features manuales + LightGBM, validación agrupada por `prompt` | hecha |
 | 3 | Embeddings de un modelo pequeño (`bge-small`), calculados en Colab | hecha |
 | 4 | Notebook de submission en Kaggle (sin internet) | hecha |
-| 5 | Fine-tuning de un LLM con LoRA en GPU (opcional) | pendiente |
+| 5 | Fine-tuning de un LLM con LoRA en Colab (T4), mezcla con LightGBM | hecha, sin enviar a Kaggle |
 | 6 | Cierre: calibración y tabla de resultados | pendiente |
